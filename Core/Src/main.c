@@ -105,6 +105,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
   HAL_GPIO_WritePin(MD_PWM_GPIO_Port, MD_PWM_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(SENSOR_EN_GPIO_Port, SENSOR_EN_Pin, GPIO_PIN_SET);
   /* USER CODE END 2 */
 
   /* Infinite loop */
