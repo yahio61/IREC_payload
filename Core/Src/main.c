@@ -18,10 +18,18 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "adc.h"
+#include "i2c.h"
+#include "spi.h"
+#include "tim.h"
+#include "usart.h"
+#include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "stdio.h"
+#include "string.h"
+#include "bmi088.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -31,6 +39,13 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define TTL_HNDLR		huart3
+#define SD_CARD_HNDLR	hspi3
+#define MAG_I2C_HNDLR	hi2c3
+#define IMU_I2C_HNDLR	hi2c1
+#define VLT_ADC_HNDLR	hadc1
+#define AMP_ADC_HNDLR	hadc2
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -39,29 +54,18 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
- I2C_HandleTypeDef hi2c1;
-I2C_HandleTypeDef hi2c3;
-
-SPI_HandleTypeDef hspi3;
-
-TIM_HandleTypeDef htim1;
-
-UART_HandleTypeDef huart3;
 
 /* USER CODE BEGIN PV */
-
+bmi088_struct_t bmi_imu;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
-static void MX_GPIO_Init(void);
-static void MX_I2C1_Init(void);
-static void MX_I2C3_Init(void);
-static void MX_SPI3_Init(void);
-static void MX_USART3_UART_Init(void);
-static void MX_TIM1_Init(void);
 /* USER CODE BEGIN PFP */
-
+static uint8_t bmi_imu_init(void);
+static void reg_3v3_on(void);
+static void reg_3v3_off(void);
+void serial_println(char* str);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -76,7 +80,7 @@ static void MX_TIM1_Init(void);
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-
+	uint8_t str[100];
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -102,29 +106,88 @@ int main(void)
   MX_SPI3_Init();
   MX_USART3_UART_Init();
   MX_TIM1_Init();
+  MX_ADC1_Init();
+  MX_ADC2_Init();
+  MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
+  HAL_NVIC_DisableIRQ(EXTI9_5_IRQn);
 
-  HAL_GPIO_WritePin(MD_PWM_GPIO_Port, MD_PWM_Pin, GPIO_PIN_SET);
-  HAL_GPIO_WritePin(SENSOR_EN_GPIO_Port, SENSOR_EN_Pin, GPIO_PIN_SET);
+  //HAL_Delay(4000);
+
+  reg_3v3_on();
+
+  HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2);
+  HAL_TIM_Encoder_Start(&htim2, TIM_CHANNEL_ALL);
+
+  //imu start
+  if(!bmi_imu_init()){
+	  serial_println("bmi fail");
+  }
+  else{
+	  serial_println("bmi success");
+  }
+
+  bmi088_config(&bmi_imu);
+
+  HAL_GPIO_WritePin(MD_IN_A_GPIO_Port, MD_IN_A_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(MD_IN_B_GPIO_Port, MD_IN_B_Pin, GPIO_PIN_RESET);
+
+  uint32_t adc1;
+  uint32_t adc2;
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+	  __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, 100);
+/*
+	  HAL_ADC_Start(&VLT_ADC_HNDLR);
+	  HAL_ADC_Start(&AMP_ADC_HNDLR);
+
+	  HAL_ADC_PollForConversion(&VLT_ADC_HNDLR, 100);
+	  adc1 = HAL_ADC_GetValue(&VLT_ADC_HNDLR);
+	  float adc1_f = (float)adc1 - 25.0;
+	  adc1_f = (adc1_f > 0) * adc1_f;
+	  adc1_f	= adc1_f * 5.31;
+
+	  HAL_ADC_PollForConversion(&AMP_ADC_HNDLR, 100);
+	  adc2 = HAL_ADC_GetValue(&AMP_ADC_HNDLR);
+	  float adc2_f = (float)adc2 * 0.015;
+
+	  sprintf((char*)str, "adc1= %lu\n\r", adc1);
+	  HAL_UART_Transmit(&huart3, str, strlen((char*)str), 50);
+
+	  sprintf((char*)str, "adc2= %.2f\n\r", adc2_f);
+	  HAL_UART_Transmit(&huart3, str, strlen((char*)str), 50);
+
+	  uint8_t chip_id = bmi088_getGyroChipId();
+	  sprintf((char*)str, "chip id =  %x\n\r", chip_id);
+	  HAL_UART_Transmit(&huart3, str, strlen((char*)str), 50);
+*/
+
+//	  sprintf((char*)str, "encoder =  %lu\n\r", (TIM2->CNT)>>2);
+//	  HAL_UART_Transmit(&TTL_HNDLR, str, strlen((char*)str), 50);
+
+	  sprintf((char*)str, "bmi accel x =  %f\n\r", bmi_imu.acc_x);
+	  HAL_UART_Transmit(&TTL_HNDLR, str, strlen((char*)str), 50);
+
+	  HAL_UART_Transmit(&TTL_HNDLR, (uint8_t*)"---------------------------\r\n", strlen("---------------------------\r\n"), 50);
+
+	  bmi088_update(&bmi_imu);
 
 	  HAL_GPIO_WritePin(MCU_LED_GPIO_Port, MCU_LED_Pin, GPIO_PIN_SET);
-	  HAL_GPIO_WritePin(MD_PWM_GPIO_Port, MD_PWM_Pin, GPIO_PIN_SET);
-	  HAL_GPIO_WritePin(MD_IN_A_GPIO_Port, MD_IN_A_Pin, GPIO_PIN_SET);
-	  HAL_GPIO_WritePin(MD_IN_B_GPIO_Port, MD_IN_B_Pin, GPIO_PIN_RESET);
-	  HAL_Delay(1000);
+	  HAL_GPIO_WritePin(BUZZER_GPIO_Port, BUZZER_Pin, GPIO_PIN_SET);
+	  HAL_Delay(300);
+
 	  HAL_GPIO_WritePin(MCU_LED_GPIO_Port, MCU_LED_Pin, GPIO_PIN_RESET);
-	  HAL_GPIO_WritePin(MD_IN_A_GPIO_Port, MD_IN_A_Pin, GPIO_PIN_RESET);
-	  HAL_GPIO_WritePin(MD_IN_B_GPIO_Port, MD_IN_B_Pin, GPIO_PIN_SET);
-	  HAL_Delay(1000);
+	  HAL_GPIO_WritePin(BUZZER_GPIO_Port, BUZZER_Pin, GPIO_PIN_RESET);
+	  HAL_Delay(300);
   }
   /* USER CODE END 3 */
 }
@@ -182,277 +245,61 @@ void SystemClock_Config(void)
   }
 }
 
-/**
-  * @brief I2C1 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_I2C1_Init(void)
-{
-
-  /* USER CODE BEGIN I2C1_Init 0 */
-
-  /* USER CODE END I2C1_Init 0 */
-
-  /* USER CODE BEGIN I2C1_Init 1 */
-
-  /* USER CODE END I2C1_Init 1 */
-  hi2c1.Instance = I2C1;
-  hi2c1.Init.ClockSpeed = 100000;
-  hi2c1.Init.DutyCycle = I2C_DUTYCYCLE_2;
-  hi2c1.Init.OwnAddress1 = 0;
-  hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
-  hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
-  hi2c1.Init.OwnAddress2 = 0;
-  hi2c1.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
-  hi2c1.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
-  if (HAL_I2C_Init(&hi2c1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN I2C1_Init 2 */
-
-  /* USER CODE END I2C1_Init 2 */
-
-}
-
-/**
-  * @brief I2C3 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_I2C3_Init(void)
-{
-
-  /* USER CODE BEGIN I2C3_Init 0 */
-
-  /* USER CODE END I2C3_Init 0 */
-
-  /* USER CODE BEGIN I2C3_Init 1 */
-
-  /* USER CODE END I2C3_Init 1 */
-  hi2c3.Instance = I2C3;
-  hi2c3.Init.ClockSpeed = 100000;
-  hi2c3.Init.DutyCycle = I2C_DUTYCYCLE_2;
-  hi2c3.Init.OwnAddress1 = 0;
-  hi2c3.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
-  hi2c3.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
-  hi2c3.Init.OwnAddress2 = 0;
-  hi2c3.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
-  hi2c3.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
-  if (HAL_I2C_Init(&hi2c3) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN I2C3_Init 2 */
-
-  /* USER CODE END I2C3_Init 2 */
-
-}
-
-/**
-  * @brief SPI3 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_SPI3_Init(void)
-{
-
-  /* USER CODE BEGIN SPI3_Init 0 */
-
-  /* USER CODE END SPI3_Init 0 */
-
-  /* USER CODE BEGIN SPI3_Init 1 */
-
-  /* USER CODE END SPI3_Init 1 */
-  /* SPI3 parameter configuration*/
-  hspi3.Instance = SPI3;
-  hspi3.Init.Mode = SPI_MODE_MASTER;
-  hspi3.Init.Direction = SPI_DIRECTION_2LINES;
-  hspi3.Init.DataSize = SPI_DATASIZE_8BIT;
-  hspi3.Init.CLKPolarity = SPI_POLARITY_LOW;
-  hspi3.Init.CLKPhase = SPI_PHASE_1EDGE;
-  hspi3.Init.NSS = SPI_NSS_HARD_OUTPUT;
-  hspi3.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_2;
-  hspi3.Init.FirstBit = SPI_FIRSTBIT_MSB;
-  hspi3.Init.TIMode = SPI_TIMODE_DISABLE;
-  hspi3.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
-  hspi3.Init.CRCPolynomial = 10;
-  if (HAL_SPI_Init(&hspi3) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN SPI3_Init 2 */
-
-  /* USER CODE END SPI3_Init 2 */
-
-}
-
-/**
-  * @brief TIM1 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_TIM1_Init(void)
-{
-
-  /* USER CODE BEGIN TIM1_Init 0 */
-
-  /* USER CODE END TIM1_Init 0 */
-
-  TIM_MasterConfigTypeDef sMasterConfig = {0};
-  TIM_OC_InitTypeDef sConfigOC = {0};
-  TIM_BreakDeadTimeConfigTypeDef sBreakDeadTimeConfig = {0};
-
-  /* USER CODE BEGIN TIM1_Init 1 */
-
-  /* USER CODE END TIM1_Init 1 */
-  htim1.Instance = TIM1;
-  htim1.Init.Prescaler = 0;
-  htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim1.Init.Period = 65535;
-  htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim1.Init.RepetitionCounter = 0;
-  htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_PWM_Init(&htim1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
-  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-  if (HAL_TIMEx_MasterConfigSynchronization(&htim1, &sMasterConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sConfigOC.OCMode = TIM_OCMODE_PWM1;
-  sConfigOC.Pulse = 0;
-  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
-  sConfigOC.OCNPolarity = TIM_OCNPOLARITY_HIGH;
-  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
-  sConfigOC.OCIdleState = TIM_OCIDLESTATE_RESET;
-  sConfigOC.OCNIdleState = TIM_OCNIDLESTATE_RESET;
-  if (HAL_TIM_PWM_ConfigChannel(&htim1, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sBreakDeadTimeConfig.OffStateRunMode = TIM_OSSR_DISABLE;
-  sBreakDeadTimeConfig.OffStateIDLEMode = TIM_OSSI_DISABLE;
-  sBreakDeadTimeConfig.LockLevel = TIM_LOCKLEVEL_OFF;
-  sBreakDeadTimeConfig.DeadTime = 0;
-  sBreakDeadTimeConfig.BreakState = TIM_BREAK_DISABLE;
-  sBreakDeadTimeConfig.BreakPolarity = TIM_BREAKPOLARITY_HIGH;
-  sBreakDeadTimeConfig.AutomaticOutput = TIM_AUTOMATICOUTPUT_DISABLE;
-  if (HAL_TIMEx_ConfigBreakDeadTime(&htim1, &sBreakDeadTimeConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN TIM1_Init 2 */
-
-  /* USER CODE END TIM1_Init 2 */
-  HAL_TIM_MspPostInit(&htim1);
-
-}
-
-/**
-  * @brief USART3 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_USART3_UART_Init(void)
-{
-
-  /* USER CODE BEGIN USART3_Init 0 */
-
-  /* USER CODE END USART3_Init 0 */
-
-  /* USER CODE BEGIN USART3_Init 1 */
-
-  /* USER CODE END USART3_Init 1 */
-  huart3.Instance = USART3;
-  huart3.Init.BaudRate = 115200;
-  huart3.Init.WordLength = UART_WORDLENGTH_8B;
-  huart3.Init.StopBits = UART_STOPBITS_1;
-  huart3.Init.Parity = UART_PARITY_NONE;
-  huart3.Init.Mode = UART_MODE_TX_RX;
-  huart3.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-  huart3.Init.OverSampling = UART_OVERSAMPLING_16;
-  if (HAL_UART_Init(&huart3) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN USART3_Init 2 */
-
-  /* USER CODE END USART3_Init 2 */
-
-}
-
-/**
-  * @brief GPIO Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_GPIO_Init(void)
-{
-  GPIO_InitTypeDef GPIO_InitStruct = {0};
-
-  /* GPIO Ports Clock Enable */
-  __HAL_RCC_GPIOC_CLK_ENABLE();
-  __HAL_RCC_GPIOH_CLK_ENABLE();
-  __HAL_RCC_GPIOA_CLK_ENABLE();
-  __HAL_RCC_GPIOB_CLK_ENABLE();
-
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, MD_IN_B_Pin|MD_CS_Pin|BUZZER_Pin, GPIO_PIN_RESET);
-
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(MD_PWM_GPIO_Port, MD_PWM_Pin, GPIO_PIN_RESET);
-
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, MCU_LED_Pin|SENSOR_EN_Pin|MD_IN_A_Pin, GPIO_PIN_RESET);
-
-  /*Configure GPIO pin : V_sense_Pin */
-  GPIO_InitStruct.Pin = V_sense_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(V_sense_GPIO_Port, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : MD_IN_B_Pin MD_CS_Pin BUZZER_Pin */
-  GPIO_InitStruct.Pin = MD_IN_B_Pin|MD_CS_Pin|BUZZER_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : MD_ISEN_B_Pin MD_ISEN_A_Pin */
-  GPIO_InitStruct.Pin = MD_ISEN_B_Pin|MD_ISEN_A_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : MD_PWM_Pin */
-  GPIO_InitStruct.Pin = MD_PWM_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(MD_PWM_GPIO_Port, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : MCU_LED_Pin SENSOR_EN_Pin MD_IN_A_Pin */
-  GPIO_InitStruct.Pin = MCU_LED_Pin|SENSOR_EN_Pin|MD_IN_A_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : INT2_XL_Pin INT_GYRO_Pin INT_ACC_Pin */
-  GPIO_InitStruct.Pin = INT2_XL_Pin|INT_GYRO_Pin|INT_ACC_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-}
-
 /* USER CODE BEGIN 4 */
 
+//BMI sensor initialize function.
+uint8_t bmi_imu_init(void)
+{
+	//Acc config
+	bmi_imu.deviceConfig.acc_bandwith = ACC_BWP_OSR4;
+	bmi_imu.deviceConfig.acc_outputDateRate = ACC_ODR_200;
+	bmi_imu.deviceConfig.acc_powerMode = ACC_PWR_SAVE_ACTIVE;
+	bmi_imu.deviceConfig.acc_range = ACC_RANGE_12G;
+
+	// Gyro config
+	bmi_imu.deviceConfig.gyro_bandWidth = GYRO_BW_230;
+	bmi_imu.deviceConfig.gyro_range = GYRO_RANGE_2000;
+	bmi_imu.deviceConfig.gyro_powerMode = GYRO_LPM_NORMAL;
+
+	bmi_imu.deviceConfig.acc_IRQ = EXTI9_5_IRQn;
+	bmi_imu.deviceConfig.gyro_IRQ = EXTI9_5_IRQn;
+	bmi_imu.deviceConfig.BMI_I2c = &IMU_I2C_HNDLR;
+
+	return	bmi088_init(&bmi_imu);
+}
+
+//Pcb 3.3 v regulator on function.
+void reg_3v3_on()
+{
+	HAL_GPIO_WritePin(SENSOR_EN_GPIO_Port, SENSOR_EN_Pin, GPIO_PIN_SET);
+	HAL_Delay(50);
+}
+
+//Pcb 3.3 v regulator off function.
+void reg_3v3_off()
+{
+	HAL_GPIO_WritePin(SENSOR_EN_GPIO_Port, SENSOR_EN_Pin, GPIO_PIN_RESET);
+	HAL_Delay(50);
+}
+
+void serial_println(char* str)
+{
+
+	HAL_UART_Transmit(&TTL_HNDLR, (uint8_t*)str, strlen(str), 50);
+	HAL_UART_Transmit(&TTL_HNDLR, (uint8_t*)"\r\n", 2, 50);
+}
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+	if(GPIO_Pin == INT_ACC_Pin)
+	{
+		bmi_imu.rawDatas.isAccelUpdated = 1;
+	}
+	if(GPIO_Pin == INT_GYRO_Pin)
+	{
+		bmi_imu.rawDatas.isGyroUpdated = 1;
+	}
+}
 /* USER CODE END 4 */
 
 /**

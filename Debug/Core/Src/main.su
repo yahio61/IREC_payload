@@ -1,8 +1,8 @@
-../Core/Src/main.c:73:5:main	8	static
-../Core/Src/main.c:122:6:SystemClock_Config	88	static
-../Core/Src/main.c:176:13:MX_I2C1_Init	8	static
-../Core/Src/main.c:210:13:MX_I2C3_Init	8	static
-../Core/Src/main.c:244:13:MX_SPI3_Init	8	static
-../Core/Src/main.c:282:13:MX_USART3_UART_Init	8	static
-../Core/Src/main.c:315:13:MX_GPIO_Init	48	static
-../Core/Src/main.c:383:6:Error_Handler	4	static,ignoring_inline_asm
+../Core/Src/main.c:80:5:main	112	static
+../Core/Src/main.c:200:6:SystemClock_Config	88	static
+../Core/Src/main.c:252:9:bmi_imu_init	8	static
+../Core/Src/main.c:273:6:reg_3v3_on	8	static
+../Core/Src/main.c:280:6:reg_3v3_off	8	static
+../Core/Src/main.c:286:6:serial_println	16	static
+../Core/Src/main.c:293:6:HAL_GPIO_EXTI_Callback	16	static
+../Core/Src/main.c:310:6:Error_Handler	4	static,ignoring_inline_asm

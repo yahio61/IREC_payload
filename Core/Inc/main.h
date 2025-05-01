@@ -49,8 +49,6 @@ extern "C" {
 
 /* USER CODE END EM */
 
-void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
-
 /* Exported functions prototypes ---------------------------------------------*/
 void Error_Handler(void);
 
@@ -59,18 +57,12 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define V_sense_Pin GPIO_PIN_3
-#define V_sense_GPIO_Port GPIOA
 #define MD_IN_B_Pin GPIO_PIN_4
 #define MD_IN_B_GPIO_Port GPIOA
 #define MD_ISEN_B_Pin GPIO_PIN_5
 #define MD_ISEN_B_GPIO_Port GPIOA
-#define MD_CS_Pin GPIO_PIN_6
-#define MD_CS_GPIO_Port GPIOA
 #define MD_ISEN_A_Pin GPIO_PIN_7
 #define MD_ISEN_A_GPIO_Port GPIOA
-#define MD_PWM_Pin GPIO_PIN_4
-#define MD_PWM_GPIO_Port GPIOC
 #define MCU_LED_Pin GPIO_PIN_12
 #define MCU_LED_GPIO_Port GPIOB
 #define SENSOR_EN_Pin GPIO_PIN_13
@@ -81,10 +73,13 @@ void Error_Handler(void);
 #define BUZZER_GPIO_Port GPIOA
 #define INT2_XL_Pin GPIO_PIN_5
 #define INT2_XL_GPIO_Port GPIOB
+#define INT2_XL_EXTI_IRQn EXTI9_5_IRQn
 #define INT_GYRO_Pin GPIO_PIN_8
 #define INT_GYRO_GPIO_Port GPIOB
+#define INT_GYRO_EXTI_IRQn EXTI9_5_IRQn
 #define INT_ACC_Pin GPIO_PIN_9
 #define INT_ACC_GPIO_Port GPIOB
+#define INT_ACC_EXTI_IRQn EXTI9_5_IRQn
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */
